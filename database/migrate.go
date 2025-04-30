@@ -3,19 +3,17 @@ package database
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
 )
 
 func RunMigrations() error {
-	files, err := ioutil.ReadDir("migrations")
+	files, err := os.ReadDir("migrations")
 	if err != nil {
 		return fmt.Errorf("error leyendo la carpeta de migraciones: %w", err)
 	}
 
-	// Ordenar por nombre
 	sort.Slice(files, func(i, j int) bool {
 		return files[i].Name() < files[j].Name()
 	})
