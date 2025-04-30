@@ -1,47 +1,51 @@
 package main
 
 import (
-	"fmt"
-	"log"
-	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
+    "log"
 
-	"github.com/joho/godotenv"
-	"torneos/database"
+    "github.com/gin-gonic/gin"
+    "github.com/joho/godotenv"
+    "torneos/database"
 )
 
-func handler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "¡Hola, CI/CD con GitHub Actions y Render en Go!")
-}
-
 func main() {
-	// Cargar .env
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatalf("Error cargando el archivo .env: %v", err)
-	}
+    // Cargar archivo .env (si estás en local)
+    err := godotenv.Load()
+    if err != nil {
+        log.Println("⚠️ No se pudo cargar .env (probablemente en producción)")
+    }
 
-	// Conectar a la base de datos
-	err = database.ConnectDatabase()
-	if err != nil {
-		log.Fatalf("Error conectando a la base de datos: %v", err)
-	}
-	defer database.CloseDatabase()
+    // Conexión a PostgreSQL
+    err = database.ConnectDatabase()
+    if err != nil {
+        log.Fatalf("❌ Error conectando a la base de datos: %v", err)
+    }
+    defer database.CloseDatabase()
 
-	// Registrar handler y arrancar servidor
-	http.HandleFunc("/", handler)
-	log.Println("Conectado correctamente a PostgreSQL")
-	log.Println("Servidor iniciado en el puerto 8080")
-	if err := http.ListenAndServe(":8080", nil); err != nil {
-		log.Fatalf("Error al iniciar el servidor: %v", err)
-	}
+    // Ejecutar migraciones
+    if err := database.RunMigrations(); err != nil {
+        log.Fatalf("❌ Error aplicando migración: %v", err)
+    }
 
-	
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
-	<-sig
+    // Crear router Gin
+    router := gin.Default()
 
-	log.Println("Cerrando servidor")
+    // Ruta de prueba
+    router.GET("/", func(c *gin.Context) {
+        c.String(200, "¡Servidor con Gin funcionando!")
+    })
+
+    // Ruta GET /api/users
+    router.GET("/api/users", func(c *gin.Context) {
+        users, err := database.GetAllUsers()
+        if err != nil {
+            c.JSON(500, gin.H{"error": "Error al obtener los usuarios"})
+            return
+        }
+        c.JSON(200, users)
+    })
+
+    // Arrancar servidor
+    log.Println("🚀 Servidor iniciado en el puerto 8080")
+    router.Run(":8080")
 }
