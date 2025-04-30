@@ -1,22 +1,41 @@
 package database
 
 import (
-    "context"
-    "fmt"
-    "os"
+	"context"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"sort"
 )
 
 func RunMigrations() error {
-    sql, err := os.ReadFile("migrations/001_create_users.sql")
-    if err != nil {
-        return fmt.Errorf("error leyendo script SQL: %w", err)
-    }
+	files, err := ioutil.ReadDir("migrations")
+	if err != nil {
+		return fmt.Errorf("error leyendo la carpeta de migraciones: %w", err)
+	}
 
-    _, err = DB.Exec(context.Background(), string(sql))
-    if err != nil {
-        return fmt.Errorf("error ejecutando migración: %w", err)
-    }
+	// Ordenar por nombre
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].Name() < files[j].Name()
+	})
 
-    fmt.Println("Migración ejecutada correctamente")
-    return nil
+	for _, file := range files {
+		if filepath.Ext(file.Name()) == ".sql" {
+			fmt.Printf("Ejecutando migración: %s\n", file.Name())
+
+			content, err := os.ReadFile(filepath.Join("migrations", file.Name()))
+			if err != nil {
+				return fmt.Errorf("error leyendo %s: %w", file.Name(), err)
+			}
+
+			_, err = DB.Exec(context.Background(), string(content))
+			if err != nil {
+				return fmt.Errorf("error ejecutando %s: %w", file.Name(), err)
+			}
+		}
+	}
+
+	fmt.Println("Todas las migraciones aplicadas correctamente")
+	return nil
 }

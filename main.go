@@ -10,11 +10,12 @@ import (
 	"os"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
+	"torneos/auth"
 	"torneos/database"
 	"torneos/models"
-	"torneos/auth" 
+
+	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
 func main() {
@@ -158,24 +159,66 @@ func main() {
 		})
 	})
 
-    router.GET("/api/profile", auth.AuthMiddleware(), func(c *gin.Context) {
-        userID := c.GetInt("user_id")
-    
-        user, err := database.GetUserByID(userID)
-        if err != nil {
-            c.JSON(500, gin.H{"error": "No se pudo obtener el perfil"})
-            return
-        }
-    
-        c.JSON(200, gin.H{
-            "id":        user.ID,
-            "username":  user.Username,
-            "avatar":    user.AvatarURL,
-            "createdAt": user.CreatedAt,
-        })
-    })
-    
-    
+	router.GET("/api/profile", auth.AuthMiddleware(), func(c *gin.Context) {
+		userID := c.GetInt("user_id")
+
+		user, err := database.GetUserByID(userID)
+		if err != nil {
+			c.JSON(500, gin.H{"error": "No se pudo obtener el perfil"})
+			return
+		}
+
+		c.JSON(200, gin.H{
+			"id":        user.ID,
+			"username":  user.Username,
+			"avatar":    user.AvatarURL,
+			"createdAt": user.CreatedAt,
+		})
+	})
+
+	router.POST("/api/tournaments", auth.AuthMiddleware(), func(c *gin.Context) {
+		var input struct {
+			Name   string `json:"name"`
+			Game   string `json:"game"`
+			Format string `json:"format"`
+		}
+
+		if err := c.ShouldBindJSON(&input); err != nil {
+			c.JSON(400, gin.H{"error": "JSON inválido"})
+			return
+		}
+
+		if input.Name == "" || input.Game == "" {
+			c.JSON(400, gin.H{"error": "El nombre y el juego son obligatorios"})
+			return
+		}
+
+		userID := c.GetInt("user_id")
+
+		tournament := &models.Tournament{
+			Name:            input.Name,
+			Game:            input.Game,
+			Format:          input.Format,
+			CreatedByUserID: userID,
+		}
+
+		tournament, err := database.CreateTournament(tournament)
+		if err != nil {
+			c.JSON(500, gin.H{"error": "No se pudo crear el torneo"})
+			return
+		}
+
+		c.JSON(201, tournament)
+	})
+
+	router.GET("/api/tournaments", func(c *gin.Context) {
+		tournaments, err := database.GetAllTournaments()
+		if err != nil {
+			c.JSON(500, gin.H{"error": "Error al obtener torneos"})
+			return
+		}
+		c.JSON(200, tournaments)
+	})
 
 	log.Println("🚀 Servidor iniciado en el puerto 8080")
 	if err := router.Run(":8080"); err != nil {
