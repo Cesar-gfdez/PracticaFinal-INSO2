@@ -32,7 +32,7 @@ func ConnectDatabase() error {
 	}
 
 	DB = pool
-	fmt.Println("✅ Conectado correctamente a PostgreSQL")
+	fmt.Println("Conectado correctamente a PostgreSQL")
 	return nil
 }
 
