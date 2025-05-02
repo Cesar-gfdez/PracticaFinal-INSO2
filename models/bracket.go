@@ -1,6 +1,6 @@
 package models
 
-type Match struct {
+type BracketMatch struct {
 	ID      int    `json:"id"`
 	Round   int    `json:"round"`
 	Player1 string `json:"player1"`
