@@ -14,6 +14,7 @@ import (
 	"torneos/auth"
 	"torneos/database"
 	"torneos/models"
+	"torneos/utils"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -260,6 +261,40 @@ func main() {
 		c.JSON(200, gin.H{
 			"tournament":   tournament,
 			"participants": participants,
+		})
+	})
+
+	router.GET("/api/tournaments/:id/bracket", func(c *gin.Context) {
+		tournamentID, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(400, gin.H{"error": "ID inválido"})
+			return
+		}
+
+		participants, err := database.GetParticipantsByTournamentID(tournamentID)
+		if err != nil {
+			c.JSON(500, gin.H{"error": "No se pudieron obtener los participantes"})
+			return
+		}
+
+		var playerNames []string
+		for _, u := range participants {
+			playerNames = append(playerNames, u.Username)
+		}
+
+		if len(playerNames) < 2 {
+			c.JSON(200, gin.H{
+				"tournament_id": tournamentID,
+				"bracket":       []string{"Se necesitan al menos 2 participantes para generar brackets"},
+			})
+			return
+		}
+
+		bracket := utils.GenerateBracket(playerNames)
+
+		c.JSON(200, gin.H{
+			"tournament_id": tournamentID,
+			"bracket":       bracket,
 		})
 	})
 
