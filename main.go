@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"time"
 
 	"torneos/auth"
@@ -21,17 +22,17 @@ import (
 func main() {
 	err := godotenv.Load()
 	if err != nil {
-		log.Println("⚠️ No se pudo cargar .env (probablemente en producción)")
+		log.Println("No se pudo cargar .env (probablemente en producción)")
 	}
 
 	err = database.ConnectDatabase()
 	if err != nil {
-		log.Fatalf("❌ Error conectando a la base de datos: %v", err)
+		log.Fatalf("Error conectando a la base de datos: %v", err)
 	}
 	defer database.CloseDatabase()
 
 	if err := database.RunMigrations(); err != nil {
-		log.Fatalf("❌ Error aplicando migración: %v", err)
+		log.Fatalf("Error aplicando migración: %v", err)
 	}
 
 	router := gin.Default()
@@ -220,8 +221,50 @@ func main() {
 		c.JSON(200, tournaments)
 	})
 
-	log.Println("🚀 Servidor iniciado en el puerto 8080")
+	router.POST("/api/tournaments/:id/join", auth.AuthMiddleware(), func(c *gin.Context) {
+		userID := c.GetInt("user_id")
+		tournamentID, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(400, gin.H{"error": "ID de torneo inválido"})
+			return
+		}
+
+		participant, err := database.JoinTournament(userID, tournamentID)
+		if err != nil {
+			c.JSON(400, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(201, participant)
+	})
+
+	router.GET("/api/tournaments/:id", func(c *gin.Context) {
+		tournamentID, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(400, gin.H{"error": "ID inválido"})
+			return
+		}
+
+		tournament, err := database.GetTournamentByID(tournamentID)
+		if err != nil {
+			c.JSON(404, gin.H{"error": "Torneo no encontrado"})
+			return
+		}
+
+		participants, err := database.GetParticipantsByTournamentID(tournamentID)
+		if err != nil {
+			c.JSON(500, gin.H{"error": "Error al obtener participantes"})
+			return
+		}
+
+		c.JSON(200, gin.H{
+			"tournament":   tournament,
+			"participants": participants,
+		})
+	})
+
+	log.Println("Servidor iniciado en el puerto 8080")
 	if err := router.Run(":8080"); err != nil {
-		log.Fatalf("❌ Error al iniciar el servidor: %v", err)
+		log.Fatalf("Error al iniciar el servidor: %v", err)
 	}
 }

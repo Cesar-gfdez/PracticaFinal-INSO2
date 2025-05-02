@@ -47,3 +47,20 @@ func GetAllTournaments() ([]models.Tournament, error) {
 
 	return tournaments, nil
 }
+
+func GetTournamentByID(id int) (*models.Tournament, error) {
+	query := `
+        SELECT id, name, game, format, created_by_user_id, created_at
+        FROM tournaments
+        WHERE id = $1;
+    `
+
+	var t models.Tournament
+	err := DB.QueryRow(context.Background(), query, id).
+		Scan(&t.ID, &t.Name, &t.Game, &t.Format, &t.CreatedByUserID, &t.CreatedAt)
+
+	if err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
