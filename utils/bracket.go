@@ -5,8 +5,8 @@ import (
 	"torneos/models"
 )
 
-func GenerateBracket(players []string) []models.Match {
-	var matches []models.Match
+func GenerateBracket(players []string) []models.BracketMatch {
+	var matches []models.BracketMatch
 	matchID := 1
 	numPlayers := len(players)
 
@@ -25,7 +25,7 @@ func GenerateBracket(players []string) []models.Match {
 			player1 := currentPlayers[i]
 			player2 := currentPlayers[i+1]
 
-			matches = append(matches, models.Match{
+			matches = append(matches, models.BracketMatch{
 				ID:      matchID,
 				Round:   round,
 				Player1: player1,

@@ -298,6 +298,71 @@ func main() {
 		})
 	})
 
+	router.POST("/api/tournaments/:id/bracket/generate", auth.AuthMiddleware(), func(c *gin.Context) {
+		tournamentID, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(400, gin.H{"error": "ID inválido"})
+			return
+		}
+
+		userID := c.GetInt("user_id")
+
+		tournament, err := database.GetTournamentByID(tournamentID)
+		if err != nil {
+			c.JSON(404, gin.H{"error": "Torneo no encontrado"})
+			return
+		}
+
+		if tournament.CreatedByUserID != userID {
+			c.JSON(403, gin.H{"error": "Solo el creador del torneo puede generar el bracket"})
+			return
+		}
+
+		participants, err := database.GetParticipantsByTournamentID(tournamentID)
+		if err != nil {
+			c.JSON(500, gin.H{"error": "Error al obtener participantes"})
+			return
+		}
+
+		if len(participants) < 2 {
+			c.JSON(400, gin.H{"error": "Se necesitan al menos 2 participantes"})
+			return
+		}
+
+		// Mapear username → ID
+		userMap := make(map[string]int)
+		var usernames []string
+		for _, u := range participants {
+			userMap[u.Username] = u.ID
+			usernames = append(usernames, u.Username)
+		}
+
+		bracket := utils.GenerateBracket(usernames)
+
+		for _, bm := range bracket {
+			m := &models.Match{
+				TournamentID: tournamentID,
+				Round:        bm.Round,
+				Status:       "pending",
+			}
+
+			if id1, ok := userMap[bm.Player1]; ok {
+				m.Player1ID = &id1
+			}
+			if id2, ok := userMap[bm.Player2]; ok {
+				m.Player2ID = &id2
+			}
+
+			_, err := database.InsertMatch(m)
+			if err != nil {
+				c.JSON(500, gin.H{"error": "Error guardando match"})
+				return
+			}
+		}
+
+		c.JSON(201, gin.H{"message": "Bracket generado y guardado correctamente"})
+	})
+
 	log.Println("Servidor iniciado en el puerto 8080")
 	if err := router.Run(":8080"); err != nil {
 		log.Fatalf("Error al iniciar el servidor: %v", err)
