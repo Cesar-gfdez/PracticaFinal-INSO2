@@ -363,6 +363,64 @@ func main() {
 		c.JSON(201, gin.H{"message": "Bracket generado y guardado correctamente"})
 	})
 
+    router.GET("/api/tournaments/:id/matches", func(c *gin.Context) {
+        tournamentID, err := strconv.Atoi(c.Param("id"))
+        if err != nil {
+            c.JSON(400, gin.H{"error": "ID inválido"})
+            return
+        }
+    
+        matches, err := database.GetMatchesByTournamentID(tournamentID)
+        if err != nil {
+            c.JSON(500, gin.H{"error": "Error al obtener matches"})
+            return
+        }
+    
+        c.JSON(200, matches)
+    })
+
+    router.POST("/api/matches/:id/report", auth.AuthMiddleware(), func(c *gin.Context) {
+        userID := c.GetInt("user_id")
+        matchID, err := strconv.Atoi(c.Param("id"))
+        if err != nil {
+            c.JSON(400, gin.H{"error": "ID inválido"})
+            return
+        }
+    
+        var input struct {
+            WinnerID int `json:"winner_id"`
+        }
+    
+        if err := c.ShouldBindJSON(&input); err != nil || input.WinnerID == 0 {
+            c.JSON(400, gin.H{"error": "Debe especificar el ID del ganador"})
+            return
+        }
+    
+        err = database.ReportMatchResult(matchID, userID, input.WinnerID)
+        if err != nil {
+            c.JSON(403, gin.H{"error": err.Error()})
+            return
+        }
+    
+        c.JSON(200, gin.H{"message": "Resultado reportado correctamente"})
+    })
+
+    router.GET("/api/tournaments/:id/bracket/full", func(c *gin.Context) {
+        tournamentID, err := strconv.Atoi(c.Param("id"))
+        if err != nil {
+            c.JSON(400, gin.H{"error": "ID inválido"})
+            return
+        }
+    
+        bracket, err := database.GetFullBracket(tournamentID)
+        if err != nil {
+            c.JSON(500, gin.H{"error": "Error al obtener el bracket"})
+            return
+        }
+    
+        c.JSON(200, bracket)
+    })
+
 	log.Println("Servidor iniciado en el puerto 8080")
 	if err := router.Run(":8080"); err != nil {
 		log.Fatalf("Error al iniciar el servidor: %v", err)
