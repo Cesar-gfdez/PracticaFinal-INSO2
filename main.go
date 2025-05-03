@@ -40,18 +40,19 @@ func main() {
 	}
 	// Redireccionar al frontend con el token
 	frontendURL := os.Getenv("FRONTEND_URL")
-	if frontendURL == "" {
-		frontendURL = "http://localhost:3000"
-	}
+if frontendURL == "" {
+    frontendURL = "http://localhost:3000"
+}
+log.Println("CORS: Allowing origin ->", frontendURL)
 
-	router := gin.Default()
-	router.Use(cors.New(cors.Config{
-    AllowOrigins:     []string{frontendURL},
+router.Use(cors.New(cors.Config{
+    AllowOrigins:     []string{frontendURL, "http://localhost:3000"},
     AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE"},
     AllowHeaders:     []string{"Origin", "Authorization", "Content-Type"},
     ExposeHeaders:    []string{"Content-Length"},
     AllowCredentials: true,
 }))
+
 
 	router.GET("/", func(c *gin.Context) {
 		c.String(200, "¡Servidor con Gin funcionando!")
