@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"time"
+	"fmt"
 
 	"torneos/auth"
 	"torneos/database"
@@ -18,6 +19,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	"github.com/gin-contrib/cors"
+
 )
 
 func main() {
@@ -37,6 +40,13 @@ func main() {
 	}
 
 	router := gin.Default()
+	router.Use(cors.New(cors.Config{
+    AllowOrigins:     []string{"http://localhost:3000"},
+    AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE"},
+    AllowHeaders:     []string{"Origin", "Authorization", "Content-Type"},
+    ExposeHeaders:    []string{"Content-Length"},
+    AllowCredentials: true,
+}))
 
 	router.GET("/", func(c *gin.Context) {
 		c.String(200, "¡Servidor con Gin funcionando!")
@@ -146,19 +156,20 @@ func main() {
 		}
 
 		// Generar JWT
-		token, err := auth.GenerateJWT(user.ID)
-		if err != nil {
-			c.JSON(500, gin.H{"error": "No se pudo generar el token"})
-			return
-		}
+token, err := auth.GenerateJWT(user.ID)
+if err != nil {
+	c.JSON(500, gin.H{"error": "No se pudo generar el token"})
+	return
+}
 
-		c.JSON(200, gin.H{
-			"message":  "Login exitoso",
-			"token":    token,
-			"id":       user.ID,
-			"username": user.Username,
-			"avatar":   user.AvatarURL,
-		})
+// Redireccionar al frontend con el token
+frontendURL := os.Getenv("FRONTEND_URL")
+if frontendURL == "" {
+	frontendURL = "http://localhost:3000"
+}
+redirectURL := fmt.Sprintf("%s/auth/callback?token=%s", frontendURL, token)
+c.Redirect(http.StatusTemporaryRedirect, redirectURL)
+
 	})
 
 	router.GET("/api/profile", auth.AuthMiddleware(), func(c *gin.Context) {
@@ -420,6 +431,29 @@ func main() {
     
         c.JSON(200, bracket)
     })
+
+	router.GET("/api/users/:id", func(c *gin.Context) {
+		idParam := c.Param("id")
+		id, err := strconv.Atoi(idParam)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ID inválido"})
+			return
+		}
+	
+		user, err := database.GetUserByID(id)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Usuario no encontrado"})
+			return
+		}
+	
+		c.JSON(http.StatusOK, user)
+	})
+	
+	router.GET("/api/auth/me", auth.AuthMiddleware(), func(c *gin.Context) {
+		c.Request.URL.Path = "/api/profile"
+		router.HandleContext(c)
+	})
+	
 
 	log.Println("Servidor iniciado en el puerto 8080")
 	if err := router.Run(":8080"); err != nil {
