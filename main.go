@@ -38,10 +38,15 @@ func main() {
 	if err := database.RunMigrations(); err != nil {
 		log.Fatalf("Error aplicando migración: %v", err)
 	}
+	// Redireccionar al frontend con el token
+	frontendURL := os.Getenv("FRONTEND_URL")
+	if frontendURL == "" {
+		frontendURL = "http://localhost:3000"
+	}
 
 	router := gin.Default()
 	router.Use(cors.New(cors.Config{
-    AllowOrigins:     []string{"http://localhost:3000"},
+    AllowOrigins:     []string{frontendURL},
     AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE"},
     AllowHeaders:     []string{"Origin", "Authorization", "Content-Type"},
     ExposeHeaders:    []string{"Content-Length"},
@@ -162,11 +167,7 @@ if err != nil {
 	return
 }
 
-// Redireccionar al frontend con el token
-frontendURL := os.Getenv("FRONTEND_URL")
-if frontendURL == "" {
-	frontendURL = "http://localhost:3000"
-}
+
 redirectURL := fmt.Sprintf("%s/auth/callback?token=%s", frontendURL, token)
 c.Redirect(http.StatusTemporaryRedirect, redirectURL)
 
