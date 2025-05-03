@@ -44,7 +44,7 @@ if frontendURL == "" {
     frontendURL = "http://localhost:3000"
 }
 log.Println("CORS: Allowing origin ->", frontendURL)
-
+router := gin.Default()
 router.Use(cors.New(cors.Config{
     AllowOrigins:     []string{frontendURL, "http://localhost:3000"},
     AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE"},
