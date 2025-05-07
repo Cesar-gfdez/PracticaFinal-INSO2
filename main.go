@@ -377,20 +377,20 @@ c.Redirect(http.StatusTemporaryRedirect, redirectURL)
 	})
 
     router.GET("/api/tournaments/:id/matches", func(c *gin.Context) {
-        tournamentID, err := strconv.Atoi(c.Param("id"))
-        if err != nil {
-            c.JSON(400, gin.H{"error": "ID inválido"})
-            return
-        }
-    
-        matches, err := database.GetMatchesByTournamentID(tournamentID)
-        if err != nil {
-            c.JSON(500, gin.H{"error": "Error al obtener matches"})
-            return
-        }
-    
-        c.JSON(200, matches)
-    })
+		tournamentID, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(400, gin.H{"error": "ID inválido"})
+			return
+		}
+	
+		matches, err := database.GetMatchesWithPlayers(tournamentID)
+		if err != nil {
+			c.JSON(500, gin.H{"error": "Error al obtener matches"})
+			return
+		}
+	
+		c.JSON(200, matches)
+	})
 
     router.POST("/api/matches/:id/report", auth.AuthMiddleware(), func(c *gin.Context) {
         userID := c.GetInt("user_id")
@@ -425,7 +425,7 @@ c.Redirect(http.StatusTemporaryRedirect, redirectURL)
             return
         }
     
-        bracket, err := database.GetFullBracket(tournamentID)
+        bracket, err := database.GetMatchesWithPlayers(tournamentID)
         if err != nil {
             c.JSON(500, gin.H{"error": "Error al obtener el bracket"})
             return
