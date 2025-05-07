@@ -1,6 +1,7 @@
 "use client";
 
 import { useUser } from "@/lib/hooks/useUser";
+import { useAuthStore } from "@/store/useAuthStore";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -8,6 +9,7 @@ import { getUser, User } from "@/lib/api/getUser";
 
 export default function ProfilePage() {
   const { userId } = useUser();
+  const logout = useAuthStore((state) => state.logout);
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
 
@@ -17,8 +19,8 @@ export default function ProfilePage() {
   }, [userId]);
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    router.push("/");
+    logout();     
+    router.push("/"); 
   };
 
   return (
