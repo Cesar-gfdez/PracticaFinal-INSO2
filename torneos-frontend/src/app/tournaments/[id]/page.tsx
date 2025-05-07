@@ -28,6 +28,7 @@ export default function TournamentDetailPage() {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
+  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
     fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/tournaments/${id}`)
@@ -41,6 +42,7 @@ export default function TournamentDetailPage() {
   }, [id]);
 
   const isAlreadyJoined = userId && participants.some((p) => p.id === userId);
+  const isCreator = userId === tournament?.created_by_user_id;
 
   const handleJoin = async () => {
     const token = localStorage.getItem("token");
@@ -51,20 +53,42 @@ export default function TournamentDetailPage() {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json"
-      }
+        "Content-Type": "application/json",
+      },
     });
 
     if (res.ok) {
-        const updated = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/tournaments/${id}`)
-          .then((r) => r.json());
-      
-        setParticipants(updated.participants ?? []);
-      }else {
+      const updated = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/tournaments/${id}`).then((r) => r.json());
+      setParticipants(updated.participants ?? []);
+    } else {
       console.error("No se pudo unir al torneo");
     }
 
     setJoining(false);
+  };
+
+  const handleGenerateBracket = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    setGenerating(true);
+
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/tournaments/${id}/bracket/generate`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (res.ok) {
+      alert("Bracket generado correctamente ✅");
+    } else {
+      const err = await res.json();
+      alert(`Error al generar bracket: ${err.error}`);
+    }
+
+    setGenerating(false);
   };
 
   if (loading) return <p className="text-muted-foreground">Cargando torneo...</p>;
@@ -91,6 +115,18 @@ export default function TournamentDetailPage() {
 
       {userId && isAlreadyJoined && (
         <p className="text-green-600 font-medium">Ya estás inscrito en este torneo ✅</p>
+      )}
+
+      {isCreator && (
+        <div className="space-y-2">
+          <Button
+            variant="secondary"
+            onClick={handleGenerateBracket}
+            disabled={generating}
+          >
+            {generating ? "Generando..." : "Generar bracket"}
+          </Button>
+        </div>
       )}
 
       <div className="pt-6">
