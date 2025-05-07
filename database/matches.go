@@ -163,10 +163,3 @@ func nullString(s *string) interface{} {
     }
     return *s
 }
-
-func nullToEmpty(s *string) string {
-    if s == nil {
-        return ""
-    }
-    return *s
-}
