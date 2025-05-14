@@ -192,48 +192,62 @@ c.Redirect(http.StatusTemporaryRedirect, redirectURL)
 	})
 
 	router.POST("/api/tournaments", auth.AuthMiddleware(), func(c *gin.Context) {
-		var input struct {
-			Name   string `json:"name"`
-			Game   string `json:"game"`
-			Format string `json:"format"`
-		}
-
+		var input models.CreateTournamentRequest
+	
 		if err := c.ShouldBindJSON(&input); err != nil {
 			c.JSON(400, gin.H{"error": "JSON inválido"})
 			return
 		}
-
-		if input.Name == "" || input.Game == "" {
-			c.JSON(400, gin.H{"error": "El nombre y el juego son obligatorios"})
+	
+		if input.Name == "" || input.Game == "" || input.Type == "" {
+			c.JSON(400, gin.H{"error": "Faltan campos obligatorios"})
 			return
 		}
-
-		userID := c.GetInt("user_id")
-
-		tournament := &models.Tournament{
-			Name:            input.Name,
-			Game:            input.Game,
-			Format:          input.Format,
-			CreatedByUserID: userID,
+	
+		startTime, err := time.Parse(time.RFC3339, input.StartTime)
+		if err != nil {
+			c.JSON(400, gin.H{"error": "Formato de fecha inválido"})
+			return
 		}
-
-		tournament, err := database.CreateTournament(tournament)
+	
+		userID := c.GetInt("user_id")
+	
+		tournament := &models.Tournament{
+			Name:             input.Name,
+			Game:             input.Game,
+			Type:             input.Type,
+			Description:      input.Description,
+			Rules:            input.Rules,
+			Platform:         input.Platform,
+			StartTime:        startTime,
+			MaxParticipants:  input.MaxParticipants,
+			BannerURL:        input.BannerURL,
+			Format:           input.Format,
+			CreatedByUserID:  userID,
+			CreatedAt:        time.Now(),
+		}
+	
+		tournament, err = database.CreateTournament(tournament)
 		if err != nil {
 			c.JSON(500, gin.H{"error": "No se pudo crear el torneo"})
 			return
 		}
-
+	
 		c.JSON(201, tournament)
 	})
+	
 
 	router.GET("/api/tournaments", func(c *gin.Context) {
-		tournaments, err := database.GetAllTournaments()
+		tournaments, err := database.GetTournamentsSummary()
 		if err != nil {
+			fmt.Println("Error al obtener torneos:", err) //
 			c.JSON(500, gin.H{"error": "Error al obtener torneos"})
 			return
 		}
+	
 		c.JSON(200, tournaments)
 	})
+	
 
 	router.POST("/api/tournaments/:id/join", auth.AuthMiddleware(), func(c *gin.Context) {
 		userID := c.GetInt("user_id")
@@ -267,6 +281,7 @@ c.Redirect(http.StatusTemporaryRedirect, redirectURL)
 
 		participants, err := database.GetParticipantsByTournamentID(tournamentID)
 		if err != nil {
+			fmt.Println("Error al obtener participantes:", err) 
 			c.JSON(500, gin.H{"error": "Error al obtener participantes"})
 			return
 		}

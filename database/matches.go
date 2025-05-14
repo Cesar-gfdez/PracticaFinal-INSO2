@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 	"torneos/models"
+    "fmt"
 )
 
 func InsertMatch(m *models.Match) (*models.Match, error) {
@@ -65,23 +66,30 @@ func GetMatchesByTournamentID(tournamentID int) ([]models.Match, error) {
 }
 
 func ReportMatchResult(matchID, reporterID, winnerID int) error {
-    query := `
+	query := `
         UPDATE matches
         SET winner_id = $1, status = 'completed', played_at = NOW()
         WHERE id = $2 AND (player1_id = $3 OR player2_id = $3);
     `
 
-    cmd, err := DB.Exec(context.Background(), query, winnerID, matchID, reporterID)
-    if err != nil {
-        return err
-    }
+	cmd, err := DB.Exec(context.Background(), query, winnerID, matchID, reporterID)
+	if err != nil {
+		return err
+	}
 
-    if cmd.RowsAffected() == 0 {
-        return errors.New("no tienes permiso para reportar este match o no existe")
-    }
+	if cmd.RowsAffected() == 0 {
+		return errors.New("no tienes permiso para reportar este match o no existe")
+	}
 
-    return nil
+	// Avanzar automáticamente al ganador a la siguiente ronda
+	err = AdvanceWinnerToNextRound(matchID, winnerID)
+	if err != nil {
+		return fmt.Errorf("el resultado fue registrado pero no se pudo avanzar al siguiente match: %v", err)
+	}
+
+	return nil
 }
+
 
 func GetMatchesWithPlayers(tournamentID int) ([]map[string]interface{}, error) {
 	query := `
@@ -163,3 +171,62 @@ func nullString(s *string) interface{} {
     }
     return *s
 }
+
+func AdvanceWinnerToNextRound(matchID, winnerID int) error {
+	// 1. Obtener torneo y ronda del match actual
+	var tournamentID, round int
+	err := DB.QueryRow(context.Background(), `
+		SELECT tournament_id, round
+		FROM matches
+		WHERE id = $1
+	`, matchID).Scan(&tournamentID, &round)
+
+	if err != nil {
+		return err
+	}
+
+	nextRound := round + 1
+
+	// 2. Buscar matches existentes en la siguiente ronda
+	rows, err := DB.Query(context.Background(), `
+		SELECT id, player1_id, player2_id
+		FROM matches
+		WHERE tournament_id = $1 AND round = $2
+		ORDER BY id
+	`, tournamentID, nextRound)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var matchID int
+		var p1ID, p2ID *int
+
+		if err := rows.Scan(&matchID, &p1ID, &p2ID); err != nil {
+			return err
+		}
+
+		if p1ID == nil {
+			_, err := DB.Exec(context.Background(), `
+				UPDATE matches SET player1_id = $1 WHERE id = $2
+			`, winnerID, matchID)
+			return err
+		}
+		if p2ID == nil {
+			_, err := DB.Exec(context.Background(), `
+				UPDATE matches SET player2_id = $1 WHERE id = $2
+			`, winnerID, matchID)
+			return err
+		}
+	}
+
+	// 3. Si no hay match con hueco, crear uno nuevo
+	_, err = DB.Exec(context.Background(), `
+		INSERT INTO matches (tournament_id, round, player1_id, status)
+		VALUES ($1, $2, $3, 'pending')
+	`, tournamentID, nextRound, winnerID)
+
+	return err
+}
+
