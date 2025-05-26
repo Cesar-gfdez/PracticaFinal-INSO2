@@ -108,10 +108,9 @@ func GetTournamentsSummary() ([]map[string]interface{}, error) {
 		SELECT 
 			t.id, t.name, t.game, t.type, t.start_time,
 			t.max_participants, t.banner_url,
-			COUNT(tp.user_id) AS participants_count
+			COUNT(p.user_id) AS participants_count
 		FROM tournaments t
 		LEFT JOIN participants p ON p.tournament_id = t.id
-
 		GROUP BY t.id
 		ORDER BY t.start_time ASC;
 	`
