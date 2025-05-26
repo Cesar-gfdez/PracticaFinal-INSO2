@@ -16,6 +16,8 @@ type Tournament struct {
 	Format           string    `json:"format"`
 	CreatedByUserID  int       `json:"created_by_user_id"`
 	CreatedAt        time.Time `json:"created_at"`
+	ChampionID *int `json:"champion_id,omitempty"`
+
 }
 
 type CreateTournamentRequest struct {

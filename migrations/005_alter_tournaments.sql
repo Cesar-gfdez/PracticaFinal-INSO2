@@ -6,3 +6,6 @@
   ADD COLUMN start_time TIMESTAMP NOT NULL DEFAULT NOW(),
   ADD COLUMN max_participants INT DEFAULT 16,
   ADD COLUMN banner_url TEXT;*/
+  /*ALTER TABLE tournaments
+ADD COLUMN champion_id INT REFERENCES users(id);*/
+

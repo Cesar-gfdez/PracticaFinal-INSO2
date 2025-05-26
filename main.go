@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -10,17 +11,15 @@ import (
 	"os"
 	"strconv"
 	"time"
-	"fmt"
 
 	"torneos/auth"
 	"torneos/database"
 	"torneos/models"
 	"torneos/utils"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
-	"github.com/gin-contrib/cors"
-
 )
 
 func main() {
@@ -40,19 +39,18 @@ func main() {
 	}
 	// Redireccionar al frontend con el token
 	frontendURL := os.Getenv("FRONTEND_URL")
-if frontendURL == "" {
-    frontendURL = "http://localhost:3000"
-}
-log.Println("CORS: Allowing origin ->", frontendURL)
-router := gin.Default()
-router.Use(cors.New(cors.Config{
-    AllowOrigins:     []string{frontendURL, "http://localhost:3000"},
-    AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE"},
-    AllowHeaders:     []string{"Origin", "Authorization", "Content-Type"},
-    ExposeHeaders:    []string{"Content-Length"},
-    AllowCredentials: true,
-}))
-
+	if frontendURL == "" {
+		frontendURL = "http://localhost:3000"
+	}
+	log.Println("CORS: Allowing origin ->", frontendURL)
+	router := gin.Default()
+	router.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{frontendURL, "http://localhost:3000"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE"},
+		AllowHeaders:     []string{"Origin", "Authorization", "Content-Type"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+	}))
 
 	router.GET("/", func(c *gin.Context) {
 		c.String(200, "¡Servidor con Gin funcionando!")
@@ -162,15 +160,14 @@ router.Use(cors.New(cors.Config{
 		}
 
 		// Generar JWT
-token, err := auth.GenerateJWT(user.ID)
-if err != nil {
-	c.JSON(500, gin.H{"error": "No se pudo generar el token"})
-	return
-}
+		token, err := auth.GenerateJWT(user.ID)
+		if err != nil {
+			c.JSON(500, gin.H{"error": "No se pudo generar el token"})
+			return
+		}
 
-
-redirectURL := fmt.Sprintf("%s/auth/callback?token=%s", frontendURL, token)
-c.Redirect(http.StatusTemporaryRedirect, redirectURL)
+		redirectURL := fmt.Sprintf("%s/auth/callback?token=%s", frontendURL, token)
+		c.Redirect(http.StatusTemporaryRedirect, redirectURL)
 
 	})
 
@@ -193,49 +190,48 @@ c.Redirect(http.StatusTemporaryRedirect, redirectURL)
 
 	router.POST("/api/tournaments", auth.AuthMiddleware(), func(c *gin.Context) {
 		var input models.CreateTournamentRequest
-	
+
 		if err := c.ShouldBindJSON(&input); err != nil {
 			c.JSON(400, gin.H{"error": "JSON inválido"})
 			return
 		}
-	
+
 		if input.Name == "" || input.Game == "" || input.Type == "" {
 			c.JSON(400, gin.H{"error": "Faltan campos obligatorios"})
 			return
 		}
-	
+
 		startTime, err := time.Parse(time.RFC3339, input.StartTime)
 		if err != nil {
 			c.JSON(400, gin.H{"error": "Formato de fecha inválido"})
 			return
 		}
-	
+
 		userID := c.GetInt("user_id")
-	
+
 		tournament := &models.Tournament{
-			Name:             input.Name,
-			Game:             input.Game,
-			Type:             input.Type,
-			Description:      input.Description,
-			Rules:            input.Rules,
-			Platform:         input.Platform,
-			StartTime:        startTime,
-			MaxParticipants:  input.MaxParticipants,
-			BannerURL:        input.BannerURL,
-			Format:           input.Format,
-			CreatedByUserID:  userID,
-			CreatedAt:        time.Now(),
+			Name:            input.Name,
+			Game:            input.Game,
+			Type:            input.Type,
+			Description:     input.Description,
+			Rules:           input.Rules,
+			Platform:        input.Platform,
+			StartTime:       startTime,
+			MaxParticipants: input.MaxParticipants,
+			BannerURL:       input.BannerURL,
+			Format:          input.Format,
+			CreatedByUserID: userID,
+			CreatedAt:       time.Now(),
 		}
-	
+
 		tournament, err = database.CreateTournament(tournament)
 		if err != nil {
 			c.JSON(500, gin.H{"error": "No se pudo crear el torneo"})
 			return
 		}
-	
+
 		c.JSON(201, tournament)
 	})
-	
 
 	router.GET("/api/tournaments", func(c *gin.Context) {
 		tournaments, err := database.GetTournamentsSummary()
@@ -244,10 +240,9 @@ c.Redirect(http.StatusTemporaryRedirect, redirectURL)
 			c.JSON(500, gin.H{"error": "Error al obtener torneos"})
 			return
 		}
-	
+
 		c.JSON(200, tournaments)
 	})
-	
 
 	router.POST("/api/tournaments/:id/join", auth.AuthMiddleware(), func(c *gin.Context) {
 		userID := c.GetInt("user_id")
@@ -281,7 +276,7 @@ c.Redirect(http.StatusTemporaryRedirect, redirectURL)
 
 		participants, err := database.GetParticipantsByTournamentID(tournamentID)
 		if err != nil {
-			fmt.Println("Error al obtener participantes:", err) 
+			fmt.Println("Error al obtener participantes:", err)
 			c.JSON(500, gin.H{"error": "Error al obtener participantes"})
 			return
 		}
@@ -391,63 +386,63 @@ c.Redirect(http.StatusTemporaryRedirect, redirectURL)
 		c.JSON(201, gin.H{"message": "Bracket generado y guardado correctamente"})
 	})
 
-    router.GET("/api/tournaments/:id/matches", func(c *gin.Context) {
+	router.GET("/api/tournaments/:id/matches", func(c *gin.Context) {
 		tournamentID, err := strconv.Atoi(c.Param("id"))
 		if err != nil {
 			c.JSON(400, gin.H{"error": "ID inválido"})
 			return
 		}
-	
+
 		matches, err := database.GetMatchesWithPlayers(tournamentID)
 		if err != nil {
 			c.JSON(500, gin.H{"error": "Error al obtener matches"})
 			return
 		}
-	
+
 		c.JSON(200, matches)
 	})
 
-    router.POST("/api/matches/:id/report", auth.AuthMiddleware(), func(c *gin.Context) {
-        userID := c.GetInt("user_id")
-        matchID, err := strconv.Atoi(c.Param("id"))
-        if err != nil {
-            c.JSON(400, gin.H{"error": "ID inválido"})
-            return
-        }
-    
-        var input struct {
-            WinnerID int `json:"winner_id"`
-        }
-    
-        if err := c.ShouldBindJSON(&input); err != nil || input.WinnerID == 0 {
-            c.JSON(400, gin.H{"error": "Debe especificar el ID del ganador"})
-            return
-        }
-    
-        err = database.ReportMatchResult(matchID, userID, input.WinnerID)
-        if err != nil {
-            c.JSON(403, gin.H{"error": err.Error()})
-            return
-        }
-    
-        c.JSON(200, gin.H{"message": "Resultado reportado correctamente"})
-    })
+	router.POST("/api/matches/:id/report", auth.AuthMiddleware(), func(c *gin.Context) {
+		userID := c.GetInt("user_id")
+		matchID, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(400, gin.H{"error": "ID inválido"})
+			return
+		}
 
-    router.GET("/api/tournaments/:id/bracket/full", func(c *gin.Context) {
-        tournamentID, err := strconv.Atoi(c.Param("id"))
-        if err != nil {
-            c.JSON(400, gin.H{"error": "ID inválido"})
-            return
-        }
-    
-        bracket, err := database.GetMatchesWithPlayers(tournamentID)
-        if err != nil {
-            c.JSON(500, gin.H{"error": "Error al obtener el bracket"})
-            return
-        }
-    
-        c.JSON(200, bracket)
-    })
+		var input struct {
+			WinnerID int `json:"winner_id"`
+		}
+
+		if err := c.ShouldBindJSON(&input); err != nil || input.WinnerID == 0 {
+			c.JSON(400, gin.H{"error": "Debe especificar el ID del ganador"})
+			return
+		}
+
+		err = database.ReportMatchResult(matchID, userID, input.WinnerID)
+		if err != nil {
+			c.JSON(403, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(200, gin.H{"message": "Resultado reportado correctamente"})
+	})
+
+	router.GET("/api/tournaments/:id/bracket/full", func(c *gin.Context) {
+		tournamentID, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(400, gin.H{"error": "ID inválido"})
+			return
+		}
+
+		bracket, err := database.GetMatchesWithPlayers(tournamentID)
+		if err != nil {
+			c.JSON(500, gin.H{"error": "Error al obtener el bracket"})
+			return
+		}
+
+		c.JSON(200, bracket)
+	})
 
 	router.GET("/api/users/:id", func(c *gin.Context) {
 		idParam := c.Param("id")
@@ -456,21 +451,20 @@ c.Redirect(http.StatusTemporaryRedirect, redirectURL)
 			c.JSON(http.StatusBadRequest, gin.H{"error": "ID inválido"})
 			return
 		}
-	
+
 		user, err := database.GetUserByID(id)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Usuario no encontrado"})
 			return
 		}
-	
+
 		c.JSON(http.StatusOK, user)
 	})
-	
+
 	router.GET("/api/auth/me", auth.AuthMiddleware(), func(c *gin.Context) {
 		c.Request.URL.Path = "/api/profile"
 		router.HandleContext(c)
 	})
-	
 
 	log.Println("Servidor iniciado en el puerto 8080")
 	if err := router.Run(":8080"); err != nil {
