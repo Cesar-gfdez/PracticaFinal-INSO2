@@ -42,7 +42,6 @@ func CreateTournament(t *models.Tournament) (*models.Tournament, error) {
 	return t, nil
 }
 
-
 func GetAllTournaments() ([]models.Tournament, error) {
 	query := `
         SELECT id, name, game, format, created_by_user_id, created_at
@@ -74,7 +73,7 @@ func GetTournamentByID(id int) (*models.Tournament, error) {
 		SELECT 
 			id, name, game, type, format, description, rules,
 			platform, start_time, max_participants, banner_url,
-			created_by_user_id, created_at
+			created_by_user_id, created_at, champion_id
 		FROM tournaments
 		WHERE id = $1;
 	`
@@ -95,6 +94,7 @@ func GetTournamentByID(id int) (*models.Tournament, error) {
 		&t.BannerURL,
 		&t.CreatedByUserID,
 		&t.CreatedAt,
+		&t.ChampionID,
 	)
 
 	if err != nil {
@@ -149,5 +149,3 @@ func GetTournamentsSummary() ([]map[string]interface{}, error) {
 
 	return results, nil
 }
-
-

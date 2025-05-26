@@ -237,7 +237,15 @@ func AdvanceWinnerToNextRound(matchID, winnerID int) error {
 
 	// ✅ Si no quedan pendientes y no hay más rondas, el torneo termina aquí
 	if pendingCount == 0 && nextRoundCount == 0 {
-		// No se crean más matches
+		// Registrar el campeón
+		_, err := DB.Exec(context.Background(), `
+		UPDATE tournaments
+		SET champion_id = $1
+		WHERE id = $2
+	`, winnerID, tournamentID)
+		if err != nil {
+			return fmt.Errorf("no se pudo registrar al campeón: %v", err)
+		}
 		return nil
 	}
 
