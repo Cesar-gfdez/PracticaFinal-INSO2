@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"fmt"
 	"time"
 	"torneos/models"
 )
@@ -70,15 +71,19 @@ func GetAllTournaments() ([]models.Tournament, error) {
 
 func GetTournamentByID(id int) (*models.Tournament, error) {
 	query := `
-		SELECT 
-			id, name, game, type, format, description, rules,
-			platform, start_time, max_participants, banner_url,
-			created_by_user_id, created_at, champion_id
-		FROM tournaments
-		WHERE id = $1;
-	`
+	SELECT 
+		t.id, t.name, t.game, t.type, t.format, t.description, t.rules,
+		t.platform, t.start_time, t.max_participants, t.banner_url,
+		t.created_by_user_id, t.created_at, t.is_finished,
+		u.id, u.username, u.avatar_url
+	FROM tournaments t
+	LEFT JOIN users u ON t.champion_id = u.id
+	WHERE t.id = $1;
+`
 
 	var t models.Tournament
+	var championID *int
+	var championUsername, championAvatar *string
 
 	err := DB.QueryRow(context.Background(), query, id).Scan(
 		&t.ID,
@@ -94,25 +99,37 @@ func GetTournamentByID(id int) (*models.Tournament, error) {
 		&t.BannerURL,
 		&t.CreatedByUserID,
 		&t.CreatedAt,
-		&t.ChampionID,
+		&t.IsFinished,
+		&championID,
+		&championUsername,
+		&championAvatar,
 	)
-
 	if err != nil {
 		return nil, err
 	}
+
+	if championID != nil {
+		t.Champion = &models.User{
+			ID:        *championID,
+			Username:  *championUsername,
+			AvatarURL: *championAvatar,
+		}
+	}
+
 	return &t, nil
 }
 
 func GetTournamentsSummary() ([]map[string]interface{}, error) {
 	query := `
 		SELECT 
-			t.id, t.name, t.game, t.type, t.start_time,
-			t.max_participants, t.banner_url,
-			COUNT(p.user_id) AS participants_count
-		FROM tournaments t
-		LEFT JOIN participants p ON p.tournament_id = t.id
-		GROUP BY t.id
-		ORDER BY t.start_time ASC;
+	t.id, t.name, t.game, t.type, t.start_time,
+	t.max_participants, t.banner_url, t.is_finished,
+	COUNT(p.user_id) AS participants_count
+FROM tournaments t
+LEFT JOIN participants p ON p.tournament_id = t.id
+GROUP BY t.id
+ORDER BY t.start_time ASC;
+
 	`
 
 	rows, err := DB.Query(context.Background(), query)
@@ -127,9 +144,10 @@ func GetTournamentsSummary() ([]map[string]interface{}, error) {
 			id, maxParticipants, participantsCount int
 			name, game, ttype, bannerURL           string
 			startTime                              time.Time
+			isFinished                             bool
 		)
 
-		err := rows.Scan(&id, &name, &game, &ttype, &startTime, &maxParticipants, &bannerURL, &participantsCount)
+		err := rows.Scan(&id, &name, &game, &ttype, &startTime, &maxParticipants, &bannerURL, &isFinished, &participantsCount)
 		if err != nil {
 			return nil, err
 		}
@@ -143,8 +161,40 @@ func GetTournamentsSummary() ([]map[string]interface{}, error) {
 			"max_participants":   maxParticipants,
 			"participants_count": participantsCount,
 			"banner_url":         bannerURL,
+			"is_finished":        isFinished,
 		})
 	}
 
 	return results, nil
+}
+
+func LeaveTournament(tournamentID, userID int) error {
+	// Verificar que el torneo no tenga matches creados (bracket generado)
+	var count int
+	err := DB.QueryRow(context.Background(), `
+		SELECT COUNT(*) FROM matches WHERE tournament_id = $1
+	`, tournamentID).Scan(&count)
+	if err != nil {
+		return err
+	}
+	if count > 0 {
+		return fmt.Errorf("no puedes darte de baja una vez generado el bracket")
+	}
+
+	// Verificar que el usuario está inscrito
+	err = DB.QueryRow(context.Background(), `
+		SELECT COUNT(*) FROM participants WHERE tournament_id = $1 AND user_id = $2
+	`, tournamentID, userID).Scan(&count)
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		return fmt.Errorf("no estás inscrito en este torneo")
+	}
+
+	// Eliminar su inscripción
+	_, err = DB.Exec(context.Background(), `
+		DELETE FROM participants WHERE tournament_id = $1 AND user_id = $2
+	`, tournamentID, userID)
+	return err
 }

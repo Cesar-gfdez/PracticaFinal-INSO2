@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,12 +10,14 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
 	"torneos/auth"
 	"torneos/database"
 	"torneos/models"
+	"torneos/realtime"
 	"torneos/utils"
 
 	"github.com/gin-contrib/cors"
@@ -383,6 +386,8 @@ func main() {
 			}
 		}
 
+		realtime.Broadcast(fmt.Sprintf("EVENT:BRACKET|TOURNAMENT:%d|MESSAGE:Bracket generado", tournamentID))
+
 		c.JSON(201, gin.H{"message": "Bracket generado y guardado correctamente"})
 	})
 
@@ -419,29 +424,29 @@ func main() {
 			return
 		}
 
+		// Necesitamos el torneo_id del match para incluirlo en la notificación
+		var tournamentID int
+		err = database.DB.QueryRow(context.Background(), `
+        SELECT tournament_id FROM matches WHERE id = $1
+    `, matchID).Scan(&tournamentID)
+		if err != nil {
+			c.JSON(500, gin.H{"error": "Error obteniendo el torneo del match"})
+			return
+		}
+
+		// Reportar el resultado
 		err = database.ReportMatchResult(matchID, userID, input.WinnerID)
 		if err != nil {
 			c.JSON(403, gin.H{"error": err.Error()})
 			return
 		}
 
+		realtime.Broadcast(fmt.Sprintf(
+			"EVENT:MATCH_RESULT|MATCH:%d|TOURNAMENT:%d|MESSAGE:Resultado reportado",
+			matchID, tournamentID,
+		))
+
 		c.JSON(200, gin.H{"message": "Resultado reportado correctamente"})
-	})
-
-	router.GET("/api/tournaments/:id/bracket/full", func(c *gin.Context) {
-		tournamentID, err := strconv.Atoi(c.Param("id"))
-		if err != nil {
-			c.JSON(400, gin.H{"error": "ID inválido"})
-			return
-		}
-
-		bracket, err := database.GetMatchesWithPlayers(tournamentID)
-		if err != nil {
-			c.JSON(500, gin.H{"error": "Error al obtener el bracket"})
-			return
-		}
-
-		c.JSON(200, bracket)
 	})
 
 	router.GET("/api/users/:id", func(c *gin.Context) {
@@ -465,6 +470,79 @@ func main() {
 		c.Request.URL.Path = "/api/profile"
 		router.HandleContext(c)
 	})
+
+	router.DELETE("/api/tournaments/:id/leave", auth.AuthMiddleware(), func(c *gin.Context) {
+		tournamentID, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(400, gin.H{"error": "ID inválido"})
+			return
+		}
+
+		userID := c.GetInt("user_id")
+
+		err = database.LeaveTournament(tournamentID, userID)
+		if err != nil {
+			c.JSON(400, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(200, gin.H{"message": "Te has dado de baja correctamente del torneo"})
+	})
+
+	router.POST("/api/matches/:id/upload", auth.AuthMiddleware(), func(c *gin.Context) {
+		// Obtener ID del match de la URL
+		idParam := c.Param("id")
+		matchID, err := strconv.Atoi(idParam)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ID de match inválido"})
+			return
+		}
+
+		// Leer el archivo del formulario (campo "file")
+		file, err := c.FormFile("file")
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "No se proporcionó archivo"})
+			return
+		}
+
+		// Crear carpeta uploads si no existe
+		uploadDir := "./uploads"
+		if _, err := os.Stat(uploadDir); os.IsNotExist(err) {
+			os.MkdirAll(uploadDir, os.ModePerm)
+		}
+
+		// Nombre de archivo único
+		filename := fmt.Sprintf("match_%d_%s", matchID, filepath.Base(file.Filename))
+		filePath := filepath.Join(uploadDir, filename)
+
+		// Guardar archivo en el sistema de ficheros
+		if err := c.SaveUploadedFile(file, filePath); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al guardar archivo"})
+			return
+		}
+
+		// Ruta relativa que se guardará en la DB
+		relativePath := "/uploads/" + filename
+
+		// Actualizar la columna screenshot_url en la tabla matches
+		updateQuery := `
+            UPDATE matches
+            SET screenshot_url = $1
+            WHERE id = $2
+        `
+		if _, err := database.DB.Exec(context.Background(), updateQuery, relativePath, matchID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al actualizar registro del match"})
+			return
+		}
+
+		// Responder al cliente
+		c.JSON(http.StatusOK, gin.H{
+			"message":        "Captura subida correctamente",
+			"screenshot_url": relativePath,
+		})
+	})
+
+	router.GET("/ws", realtime.WebSocketHandler)
 
 	log.Println("Servidor iniciado en el puerto 8080")
 	if err := router.Run(":8080"); err != nil {

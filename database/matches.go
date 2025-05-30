@@ -4,8 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
 	"time"
 	"torneos/models"
+	"torneos/realtime"
+
+	"github.com/gin-gonic/gin"
 )
 
 func InsertMatch(m *models.Match) (*models.Match, error) {
@@ -202,10 +209,10 @@ func AdvanceWinnerToNextRound(matchID, winnerID int) error {
 	// 1. Obtener torneo y ronda del match actual
 	var tournamentID, round int
 	err := DB.QueryRow(context.Background(), `
-		SELECT tournament_id, round
-		FROM matches
-		WHERE id = $1
-	`, matchID).Scan(&tournamentID, &round)
+        SELECT tournament_id, round
+        FROM matches
+        WHERE id = $1
+    `, matchID).Scan(&tournamentID, &round)
 
 	if err != nil {
 		return err
@@ -216,10 +223,10 @@ func AdvanceWinnerToNextRound(matchID, winnerID int) error {
 	// 2. Verificar si ya no quedan más matches pendientes en la ronda actual
 	var pendingCount int
 	err = DB.QueryRow(context.Background(), `
-		SELECT COUNT(*)
-		FROM matches
-		WHERE tournament_id = $1 AND round = $2 AND status != 'completed'
-	`, tournamentID, round).Scan(&pendingCount)
+        SELECT COUNT(*)
+        FROM matches
+        WHERE tournament_id = $1 AND round = $2 AND status != 'completed'
+    `, tournamentID, round).Scan(&pendingCount)
 	if err != nil {
 		return err
 	}
@@ -227,35 +234,39 @@ func AdvanceWinnerToNextRound(matchID, winnerID int) error {
 	// 3. Verificar si ya existe algún match en la siguiente ronda
 	var nextRoundCount int
 	err = DB.QueryRow(context.Background(), `
-		SELECT COUNT(*)
-		FROM matches
-		WHERE tournament_id = $1 AND round = $2
-	`, tournamentID, nextRound).Scan(&nextRoundCount)
+        SELECT COUNT(*)
+        FROM matches
+        WHERE tournament_id = $1 AND round = $2
+    `, tournamentID, nextRound).Scan(&nextRoundCount)
 	if err != nil {
 		return err
 	}
 
-	// ✅ Si no quedan pendientes y no hay más rondas, el torneo termina aquí
 	if pendingCount == 0 && nextRoundCount == 0 {
-		// Registrar el campeón
+		// Registrar el campeón y marcar como finalizado
 		_, err := DB.Exec(context.Background(), `
-		UPDATE tournaments
-		SET champion_id = $1
-		WHERE id = $2
-	`, winnerID, tournamentID)
+            UPDATE tournaments
+            SET champion_id = $1, is_finished = TRUE
+            WHERE id = $2
+        `, winnerID, tournamentID)
 		if err != nil {
-			return fmt.Errorf("no se pudo registrar al campeón: %v", err)
+			return fmt.Errorf("no se pudo registrar al campeón ni finalizar el torneo: %v", err)
 		}
+		realtime.Broadcast(fmt.Sprintf(
+			"EVENT:WINNER|TOURNAMENT:%d|WINNER_ID:%d|MESSAGE:Torneo finalizado",
+			tournamentID, winnerID,
+		))
+
 		return nil
 	}
 
 	// 4. Verificar si el jugador ya está en un match de la siguiente ronda
 	var exists int
 	err = DB.QueryRow(context.Background(), `
-		SELECT COUNT(*)
-		FROM matches
-		WHERE tournament_id = $1 AND round = $2 AND (player1_id = $3 OR player2_id = $3)
-	`, tournamentID, nextRound, winnerID).Scan(&exists)
+        SELECT COUNT(*)
+        FROM matches
+        WHERE tournament_id = $1 AND round = $2 AND (player1_id = $3 OR player2_id = $3)
+    `, tournamentID, nextRound, winnerID).Scan(&exists)
 	if err != nil {
 		return err
 	}
@@ -267,11 +278,11 @@ func AdvanceWinnerToNextRound(matchID, winnerID int) error {
 
 	// 5. Buscar matches con hueco en la siguiente ronda
 	rows, err := DB.Query(context.Background(), `
-		SELECT id, player1_id, player2_id
-		FROM matches
-		WHERE tournament_id = $1 AND round = $2
-		ORDER BY id
-	`, tournamentID, nextRound)
+        SELECT id, player1_id, player2_id
+        FROM matches
+        WHERE tournament_id = $1 AND round = $2
+        ORDER BY id
+    `, tournamentID, nextRound)
 	if err != nil {
 		return err
 	}
@@ -287,23 +298,75 @@ func AdvanceWinnerToNextRound(matchID, winnerID int) error {
 
 		if p1ID == nil {
 			_, err := DB.Exec(context.Background(), `
-				UPDATE matches SET player1_id = $1 WHERE id = $2
-			`, winnerID, matchID)
+                UPDATE matches SET player1_id = $1 WHERE id = $2
+            `, winnerID, matchID)
 			return err
 		}
 		if p2ID == nil {
 			_, err := DB.Exec(context.Background(), `
-				UPDATE matches SET player2_id = $1 WHERE id = $2
-			`, winnerID, matchID)
+                UPDATE matches SET player2_id = $1 WHERE id = $2
+            `, winnerID, matchID)
 			return err
 		}
 	}
 
 	// 6. Si no hay match con hueco, crear uno nuevo
 	_, err = DB.Exec(context.Background(), `
-		INSERT INTO matches (tournament_id, round, player1_id, status)
-		VALUES ($1, $2, $3, 'pending')
-	`, tournamentID, nextRound, winnerID)
+        INSERT INTO matches (tournament_id, round, player1_id, status)
+        VALUES ($1, $2, $3, 'pending')
+    `, tournamentID, nextRound, winnerID)
 
 	return err
+}
+
+func UploadMatchScreenshot(c *gin.Context) {
+	// Obtener el ID del match
+	matchIDStr := c.Param("id")
+	matchID, err := strconv.Atoi(matchIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid match ID"})
+		return
+	}
+
+	// Leer el archivo del formulario (campo "file")
+	file, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No file provided"})
+		return
+	}
+
+	// Crear carpeta uploads si no existe
+	uploadDir := "./uploads"
+	if _, err := os.Stat(uploadDir); os.IsNotExist(err) {
+		os.Mkdir(uploadDir, os.ModePerm)
+	}
+
+	// Construir path del archivo
+	filename := fmt.Sprintf("match_%d_%s", matchID, filepath.Base(file.Filename))
+	filePath := filepath.Join(uploadDir, filename)
+
+	// Guardar archivo
+	if err := c.SaveUploadedFile(file, filePath); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
+		return
+	}
+
+	// Guardar ruta en la base de datos
+	relativePath := "/uploads/" + filename
+	updateQuery := `
+        UPDATE matches
+        SET screenshot_url = $1
+        WHERE id = $2
+    `
+	_, err = DB.Exec(context.Background(), updateQuery, relativePath, matchID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update match"})
+		return
+	}
+
+	// Responder OK
+	c.JSON(http.StatusOK, gin.H{
+		"message":        "Screenshot uploaded successfully",
+		"screenshot_url": relativePath,
+	})
 }

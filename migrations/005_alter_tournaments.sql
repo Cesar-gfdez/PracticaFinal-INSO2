@@ -9,3 +9,6 @@
   /*ALTER TABLE tournaments
 ADD COLUMN champion_id INT REFERENCES users(id);*/
 
+/*ALTER TABLE tournaments ADD COLUMN is_finished BOOLEAN DEFAULT FALSE;*/
+/*ALTER TABLE matches
+ADD COLUMN screenshot_url TEXT;*/
