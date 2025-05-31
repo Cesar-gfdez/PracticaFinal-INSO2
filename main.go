@@ -197,9 +197,12 @@ func main() {
 		var input models.CreateTournamentRequest
 
 		if err := c.ShouldBindJSON(&input); err != nil {
+			fmt.Printf("BIND ERROR: %+v\n", err)
 			c.JSON(400, gin.H{"error": "JSON inválido"})
 			return
 		}
+
+		fmt.Printf("BODY RECIBIDO: %+v\n", input)
 
 		if input.Name == "" || input.Game == "" || input.Type == "" {
 			c.JSON(400, gin.H{"error": "Faltan campos obligatorios"})
@@ -214,28 +217,40 @@ func main() {
 
 		userID := c.GetInt("user_id")
 
-		tournament := &models.Tournament{
-			Name:            input.Name,
-			Game:            input.Game,
-			Type:            input.Type,
-			Description:     input.Description,
-			Rules:           input.Rules,
-			Platform:        input.Platform,
-			StartTime:       startTime,
-			MaxParticipants: input.MaxParticipants,
-			BannerURL:       input.BannerURL,
-			Format:          input.Format,
-			CreatedByUserID: userID,
-			CreatedAt:       time.Now(),
+		// Serializar rules a JSON
+		rulesJSON, err := json.Marshal(input.Rules)
+		if err != nil {
+			fmt.Println("ERROR SERIALIZANDO RULES:", err)
+			c.JSON(500, gin.H{"error": "Error serializando reglas"})
+			return
 		}
 
-		tournament, err = database.CreateTournament(tournament)
+		_, err = database.DB.Exec(context.Background(), `
+        INSERT INTO tournaments (
+            name, game, type, description, rules, platform, start_time, max_participants, banner_url, format, created_by_user_id, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+    `,
+			input.Name,
+			input.Game,
+			input.Type,
+			input.Description,
+			rulesJSON, // PASAMOS RULES SERIALIZADO
+			input.Platform,
+			startTime,
+			input.MaxParticipants,
+			input.BannerURL,
+			input.Format,
+			userID,
+			time.Now(),
+		)
+
 		if err != nil {
+			fmt.Println("INSERT ERROR:", err)
 			c.JSON(500, gin.H{"error": "No se pudo crear el torneo"})
 			return
 		}
 
-		c.JSON(201, tournament)
+		c.JSON(201, gin.H{"message": "Torneo creado correctamente"})
 	})
 
 	router.GET("/api/tournaments", func(c *gin.Context) {

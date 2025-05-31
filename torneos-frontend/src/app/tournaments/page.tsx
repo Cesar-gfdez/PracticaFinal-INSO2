@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/store/useAuthStore";
 import { getTournaments, Tournament } from "@/lib/api/getTournaments";
+import { gameImages } from "@/lib/gameImages";
 
 export default function TournamentsPage() {
   const userId = useAuthStore((state) => state.userId);
@@ -19,7 +20,7 @@ export default function TournamentsPage() {
   }, []);
 
   return (
-    <div className="max-w-4xl mx-auto py-10">
+    <div className="max-w-6xl mx-auto py-10">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold">Torneos disponibles</h2>
 
@@ -35,19 +36,34 @@ export default function TournamentsPage() {
       ) : tournaments.length === 0 ? (
         <p className="text-muted-foreground">No hay torneos por ahora.</p>
       ) : (
-        <ul className="space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {tournaments.map((t) => (
-           <li key={t.id} className="border p-4 rounded-lg hover:bg-muted transition">
-           <Link href={`/tournaments/${t.id}`}>
-             <h3 className="text-lg font-semibold">{t.name}</h3>
-             <p className="text-sm text-muted-foreground">Juego: {t.game}</p>
-             <p className="text-sm text-muted-foreground">
-               Formato: {t.format === "single" ? "Eliminación simple" : "Eliminación doble"}
-             </p>
-           </Link>
-         </li>
+            <div
+              key={t.id}
+              className="border rounded-lg overflow-hidden shadow hover:shadow-lg transition"
+            >
+              <Link href={`/tournaments/${t.id}`} className="block">
+                {/* Imagen en base al juego */}
+                <img
+                  src={gameImages[t.game] || "/images/default.jpg"}
+                  alt={t.name}
+                  className="w-full h-40 object-cover"
+                />
+
+                <div className="p-4">
+                  <h3 className="text-lg font-semibold mb-1">{t.name}</h3>
+                  <p className="text-sm text-muted-foreground mb-1">Juego: {t.game}</p>
+                  <p className="text-sm text-muted-foreground mb-1">
+                    Formato:{" "}
+                    {t.format === "single"
+                      ? "Eliminación simple"
+                      : "Eliminación doble"}
+                  </p>
+                </div>
+              </Link>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
     </div>
   );
