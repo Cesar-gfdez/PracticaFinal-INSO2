@@ -252,6 +252,48 @@ func AdvanceWinnerToNextRound(matchID, winnerID int) error {
 		if err != nil {
 			return fmt.Errorf("no se pudo registrar al campeón ni finalizar el torneo: %v", err)
 		}
+
+		// Sumar +50 puntos al ganador
+		_, err = DB.Exec(context.Background(), `
+            UPDATE users
+            SET points = points + 50
+            WHERE id = $1
+        `, winnerID)
+		if err != nil {
+			return fmt.Errorf("no se pudo actualizar los puntos del ganador: %v", err)
+		}
+
+		// Obtener subcampeón (jugador que perdió la final)
+		var player1ID, player2ID int
+		err = DB.QueryRow(context.Background(), `
+            SELECT COALESCE(player1_id, 0), COALESCE(player2_id, 0)
+            FROM matches
+            WHERE id = $1
+        `, matchID).Scan(&player1ID, &player2ID)
+		if err != nil {
+			return fmt.Errorf("no se pudo obtener los jugadores de la final: %v", err)
+		}
+
+		var runnerUpID int
+		if player1ID != winnerID && player1ID != 0 {
+			runnerUpID = player1ID
+		} else if player2ID != winnerID && player2ID != 0 {
+			runnerUpID = player2ID
+		}
+
+		if runnerUpID != 0 {
+			// Sumar +30 puntos al subcampeón
+			_, err = DB.Exec(context.Background(), `
+                UPDATE users
+                SET points = points + 30
+                WHERE id = $1
+            `, runnerUpID)
+			if err != nil {
+				return fmt.Errorf("no se pudo actualizar los puntos del subcampeón: %v", err)
+			}
+		}
+
+		// Emitir notificación de torneo finalizado
 		realtime.Broadcast(fmt.Sprintf(
 			"EVENT:WINNER|TOURNAMENT:%d|WINNER_ID:%d|MESSAGE:Torneo finalizado",
 			tournamentID, winnerID,

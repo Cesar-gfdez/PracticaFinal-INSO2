@@ -1,14 +1,21 @@
-/*ALTER TABLE tournaments
+ALTER TABLE tournaments
   ADD COLUMN type VARCHAR(20) CHECK (type IN ('INDIVIDUAL', 'TEAM')) NOT NULL DEFAULT 'INDIVIDUAL',
   ADD COLUMN description TEXT,
   ADD COLUMN rules JSONB DEFAULT '[]',
   ADD COLUMN platform VARCHAR(100) DEFAULT '',
   ADD COLUMN start_time TIMESTAMP NOT NULL DEFAULT NOW(),
   ADD COLUMN max_participants INT DEFAULT 16,
-  ADD COLUMN banner_url TEXT;*/
-  /*ALTER TABLE tournaments
-ADD COLUMN champion_id INT REFERENCES users(id);*/
+  ADD COLUMN banner_url TEXT;
+  ALTER TABLE tournaments
+ADD COLUMN champion_id INT REFERENCES users(id);
 
-/*ALTER TABLE tournaments ADD COLUMN is_finished BOOLEAN DEFAULT FALSE;*/
-/*ALTER TABLE matches
-ADD COLUMN screenshot_url TEXT;*/
+ALTER TABLE tournaments ADD COLUMN is_finished BOOLEAN DEFAULT FALSE;
+ALTER TABLE matches
+ADD COLUMN screenshot_url TEXT;
+
+ALTER TABLE users
+ADD COLUMN points INTEGER DEFAULT 0;
+
+ALTER TABLE users
+ADD COLUMN twitch VARCHAR(255),
+ADD COLUMN youtube VARCHAR(255);

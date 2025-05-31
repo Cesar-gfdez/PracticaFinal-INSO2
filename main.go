@@ -188,6 +188,8 @@ func main() {
 			"username":  user.Username,
 			"avatar":    user.AvatarURL,
 			"createdAt": user.CreatedAt,
+			"twitch":    user.Twitch,
+			"youtube":   user.YouTube,
 		})
 	})
 
@@ -355,7 +357,19 @@ func main() {
 			return
 		}
 
-		// Mapear username → ID
+		for _, u := range participants {
+			_, err := database.DB.Exec(context.Background(), `
+            UPDATE users
+            SET points = points + 5
+            WHERE id = $1
+        `, u.ID)
+
+			if err != nil {
+				c.JSON(500, gin.H{"error": fmt.Sprintf("Error actualizando puntos de participación para el usuario %d", u.ID)})
+				return
+			}
+		}
+
 		userMap := make(map[string]int)
 		var usernames []string
 		for _, u := range participants {
@@ -508,7 +522,10 @@ func main() {
 		// Crear carpeta uploads si no existe
 		uploadDir := "./uploads"
 		if _, err := os.Stat(uploadDir); os.IsNotExist(err) {
-			os.MkdirAll(uploadDir, os.ModePerm)
+			if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Error creando la carpeta de uploads"})
+				return
+			}
 		}
 
 		// Nombre de archivo único
@@ -543,6 +560,167 @@ func main() {
 	})
 
 	router.GET("/ws", realtime.WebSocketHandler)
+
+	router.GET("/api/ranking", func(c *gin.Context) {
+		ranking, err := database.GetRankingTop(10)
+		if err != nil {
+			c.JSON(500, gin.H{"error": "Error al obtener el ranking"})
+			return
+		}
+
+		c.JSON(200, ranking)
+	})
+
+	router.PUT("/api/tournaments/:id", auth.AuthMiddleware(), func(c *gin.Context) {
+		tournamentID, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(400, gin.H{"error": "ID inválido"})
+			return
+		}
+
+		userID := c.GetInt("user_id")
+
+		tournament, err := database.GetTournamentByID(tournamentID)
+		if err != nil {
+			c.JSON(404, gin.H{"error": "Torneo no encontrado"})
+			return
+		}
+
+		if tournament.CreatedByUserID != userID {
+			c.JSON(403, gin.H{"error": "Solo el creador del torneo puede editarlo"})
+			return
+		}
+
+		var input models.CreateTournamentRequest
+		if err := c.ShouldBindJSON(&input); err != nil {
+			c.JSON(400, gin.H{"error": "JSON inválido"})
+			return
+		}
+
+		startTime, err := time.Parse(time.RFC3339, input.StartTime)
+		if err != nil {
+			c.JSON(400, gin.H{"error": "Formato de fecha inválido"})
+			return
+		}
+
+		// Actualizar el torneo
+		_, err = database.DB.Exec(context.Background(), `
+        UPDATE tournaments
+        SET name = $1,
+            game = $2,
+            type = $3,
+            description = $4,
+            rules = $5,
+            platform = $6,
+            start_time = $7,
+            max_participants = $8,
+            banner_url = $9,
+            format = $10
+        WHERE id = $11
+    `, input.Name, input.Game, input.Type, input.Description, input.Rules, input.Platform,
+			startTime, input.MaxParticipants, input.BannerURL, input.Format, tournamentID)
+
+		if err != nil {
+			c.JSON(500, gin.H{"error": "Error al actualizar el torneo"})
+			return
+		}
+
+		c.JSON(200, gin.H{"message": "Torneo actualizado correctamente"})
+	})
+
+	router.DELETE("/api/tournaments/:id", auth.AuthMiddleware(), func(c *gin.Context) {
+		tournamentID, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(400, gin.H{"error": "ID inválido"})
+			return
+		}
+
+		userID := c.GetInt("user_id")
+
+		tournament, err := database.GetTournamentByID(tournamentID)
+		if err != nil {
+			c.JSON(404, gin.H{"error": "Torneo no encontrado"})
+			return
+		}
+
+		if tournament.CreatedByUserID != userID {
+			c.JSON(403, gin.H{"error": "Solo el creador del torneo puede eliminarlo"})
+			return
+		}
+
+		// Eliminar el torneo
+		_, err = database.DB.Exec(context.Background(), `
+        DELETE FROM tournaments
+        WHERE id = $1
+    `, tournamentID)
+
+		if err != nil {
+			c.JSON(500, gin.H{"error": "Error al eliminar el torneo"})
+			return
+		}
+
+		c.JSON(200, gin.H{"message": "Torneo eliminado correctamente"})
+	})
+
+	router.GET("/api/users/:id/history", func(c *gin.Context) {
+		userID, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(400, gin.H{"error": "ID de usuario inválido"})
+			return
+		}
+
+		history, err := database.GetUserTournamentHistory(userID)
+		if err != nil {
+			c.JSON(500, gin.H{"error": "Error al obtener historial de torneos"})
+			return
+		}
+
+		c.JSON(200, history)
+	})
+
+	router.GET("/api/users/:id/matches", func(c *gin.Context) {
+		userID, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(400, gin.H{"error": "ID de usuario inválido"})
+			return
+		}
+
+		matches, err := database.GetUserMatches(userID)
+		if err != nil {
+			c.JSON(500, gin.H{"error": "Error al obtener matches del usuario"})
+			return
+		}
+
+		c.JSON(200, matches)
+	})
+
+	router.PUT("/api/profile/socials", auth.AuthMiddleware(), func(c *gin.Context) {
+		userID := c.GetInt("user_id")
+
+		var input struct {
+			Twitch  *string `json:"twitch"`
+			YouTube *string `json:"youtube"`
+		}
+
+		if err := c.ShouldBindJSON(&input); err != nil {
+			c.JSON(400, gin.H{"error": "JSON inválido"})
+			return
+		}
+
+		_, err := database.DB.Exec(context.Background(), `
+        UPDATE users
+        SET twitch = $1,
+            youtube = $2
+        WHERE id = $3
+    `, input.Twitch, input.YouTube, userID)
+
+		if err != nil {
+			c.JSON(500, gin.H{"error": "Error al actualizar redes sociales"})
+			return
+		}
+
+		c.JSON(200, gin.H{"message": "Redes sociales actualizadas correctamente"})
+	})
 
 	log.Println("Servidor iniciado en el puerto 8080")
 	if err := router.Run(":8080"); err != nil {
