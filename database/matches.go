@@ -380,7 +380,10 @@ func UploadMatchScreenshot(c *gin.Context) {
 	// Crear carpeta uploads si no existe
 	uploadDir := "./uploads"
 	if _, err := os.Stat(uploadDir); os.IsNotExist(err) {
-		os.Mkdir(uploadDir, os.ModePerm)
+		if err := os.Mkdir(uploadDir, os.ModePerm); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error creando la carpeta de uploads"})
+			return
+		}
 	}
 
 	// Construir path del archivo
