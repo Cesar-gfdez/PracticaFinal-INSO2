@@ -10,13 +10,18 @@ export default function Header() {
   return (
     <header className="px-6 py-4 border-b flex items-center justify-between">
       <h1 className="text-xl font-bold">
-        <Link href="/">Torneos</Link>
+        <Link href="/">Matchitos</Link>
       </h1>
 
       <nav className="space-x-4 text-sm flex items-center">
         <Link href="/tournaments" className="hover:underline">
           Torneos
         </Link>
+
+        <Link href="/rankings" className="hover:underline">
+          Rankings
+        </Link>
+
 
         {userId ? (
           <Link href="/profile" className="hover:underline">
