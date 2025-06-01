@@ -14,4 +14,5 @@ export interface Match {
       id: number;
       username: string;
     };
+    screenshot_url?: string | null;
   }

@@ -59,9 +59,9 @@ func CreateUser(u *models.User) (*models.User, error) {
 func GetUserByID(id int) (*models.User, error) {
 	var user models.User
 	err := DB.QueryRow(context.Background(),
-		`SELECT id, username, email, oauth_provider, oauth_id, avatar_url, created_at
+		`SELECT id, username, email, oauth_provider, oauth_id, avatar_url, created_at, twitch, youtube
 		 FROM users WHERE id=$1`, id).
-		Scan(&user.ID, &user.Username, &user.Email, &user.OAuthProvider, &user.OAuthID, &user.AvatarURL, &user.CreatedAt)
+		Scan(&user.ID, &user.Username, &user.Email, &user.OAuthProvider, &user.OAuthID, &user.AvatarURL, &user.CreatedAt, &user.Twitch, &user.YouTube)
 
 	if err != nil {
 		return nil, err

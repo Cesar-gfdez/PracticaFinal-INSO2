@@ -55,6 +55,8 @@ func main() {
 		AllowCredentials: true,
 	}))
 
+	router.Static("/uploads", "./uploads")
+
 	router.GET("/", func(c *gin.Context) {
 		c.String(200, "¡Servidor con Gin funcionando!")
 	})

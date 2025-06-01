@@ -57,7 +57,7 @@ export default function TournamentsPage() {
                     Formato:{" "}
                     {t.format === "single"
                       ? "Eliminación simple"
-                      : "Eliminación doble"}
+                      : "Eliminación simple"}
                   </p>
                 </div>
               </Link>

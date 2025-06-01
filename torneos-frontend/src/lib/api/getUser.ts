@@ -4,6 +4,8 @@ export interface User {
   id: number;
   username: string;
   avatar_url: string;
+  twitch?: string | null;
+  youtube?: string | null;
 }
 
 export async function getUser(id: number): Promise<User | null> {

@@ -164,7 +164,6 @@ export default function CreateTournamentPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="single">Eliminación simple</SelectItem>
-              <SelectItem value="double">Eliminación doble</SelectItem>
             </SelectContent>
           </Select>
         </div>

@@ -127,7 +127,7 @@ func ReportMatchResult(matchID, reporterID, winnerID int) error {
 func GetMatchesWithPlayers(tournamentID int) ([]map[string]interface{}, error) {
 	query := `
         SELECT 
-            m.id, m.round, m.status, m.played_at,
+            m.id, m.round, m.status, m.played_at, m.screenshot_url,  -- ✅ Añadido
             u1.id AS p1_id, u1.username AS p1_username,
             u2.id AS p2_id, u2.username AS p2_username,
             uw.id AS winner_id, uw.username AS winner_username
@@ -151,6 +151,7 @@ func GetMatchesWithPlayers(tournamentID int) ([]map[string]interface{}, error) {
 			id, round      int
 			status         string
 			playedAt       *time.Time
+			screenshotURL  *string // ✅ Añadido
 			p1ID, p2ID     *int
 			p1Username     *string
 			p2Username     *string
@@ -159,7 +160,7 @@ func GetMatchesWithPlayers(tournamentID int) ([]map[string]interface{}, error) {
 		)
 
 		err := rows.Scan(
-			&id, &round, &status, &playedAt,
+			&id, &round, &status, &playedAt, &screenshotURL, // ✅ Añadido
 			&p1ID, &p1Username,
 			&p2ID, &p2Username,
 			&winnerID, &winnerUsername,
@@ -169,10 +170,11 @@ func GetMatchesWithPlayers(tournamentID int) ([]map[string]interface{}, error) {
 		}
 
 		result = append(result, map[string]interface{}{
-			"id":       id,
-			"round":    round,
-			"status":   status,
-			"playedAt": playedAt,
+			"id":             id,
+			"round":          round,
+			"status":         status,
+			"playedAt":       playedAt,
+			"screenshot_url": nullString(screenshotURL), // ✅ Añadido
 			"player1": map[string]interface{}{
 				"id":       nullInt(p1ID),
 				"username": nullString(p1Username),
