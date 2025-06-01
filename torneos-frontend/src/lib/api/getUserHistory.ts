@@ -16,8 +16,4 @@ export async function getUserHistory(userId: number): Promise<UserTournamentHist
   }
 
   return res.json();
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 99649a26706743bc8fc65446359ad37a3aed5974
