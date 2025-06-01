@@ -13,11 +13,14 @@ export default function TournamentsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getTournaments()
-      .then(setTournaments)
-      .catch((e) => console.error(e))
-      .finally(() => setLoading(false));
-  }, []);
+  getTournaments()
+    .then((data) => setTournaments(data ?? []))
+    .catch((e) => {
+      console.error("Error al cargar torneos:", e);
+      setTournaments([]); // proteger
+    })
+    .finally(() => setLoading(false));
+}, []);
 
   return (
     <div className="max-w-6xl mx-auto py-10">
