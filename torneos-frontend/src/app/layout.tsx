@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import Header from "@/components/ui/Header";
 import SessionHandler from "@/components/auth/SessionHandler";
-import { WebSocketListener } from "@/components/WebSocketListener";
+//import { WebSocketListener } from "@/components/WebSocketListener";
 import { Toaster } from "sonner";
 
 
