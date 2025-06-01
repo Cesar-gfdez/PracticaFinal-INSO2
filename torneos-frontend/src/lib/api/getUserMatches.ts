@@ -18,4 +18,8 @@ export async function getUserMatches(userId: number): Promise<UserMatchEntry[]> 
   }
 
   return res.json();
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 99649a26706743bc8fc65446359ad37a3aed5974

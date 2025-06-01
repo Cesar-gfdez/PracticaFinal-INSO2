@@ -99,4 +99,8 @@ export default function RankingsPage() {
       )}
     </div>
   );
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 99649a26706743bc8fc65446359ad37a3aed5974
