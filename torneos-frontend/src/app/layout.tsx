@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import Header from "@/components/ui/Header";
 import SessionHandler from "@/components/auth/SessionHandler";
-//import { WebSocketListener } from "@/components/WebSocketListener";
+import { WebSocketListener } from "@/components/WebSocketListener";
 import { Toaster } from "sonner";
 
 
@@ -18,7 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="es">
       <body className="bg-background text-foreground min-h-screen">
         <Header />
-        {/*<WebSocketListener />*/}
+        <WebSocketListener />
         <Toaster richColors />
         <SessionHandler />
         <main className="p-6">{children}</main>
