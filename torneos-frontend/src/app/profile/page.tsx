@@ -30,13 +30,19 @@ export default function ProfilePage() {
 
     // Cargar historial de torneos
     getUserHistory(userId)
-      .then(setHistory)
-      .catch((err) => console.error("Error al cargar historial de torneos:", err));
+    .then((data) => setHistory(data ?? []))
+    .catch((err) => {
+      console.error("Error al cargar historial de torneos:", err);
+      setHistory([]);
+    });
 
     // Cargar historial de matches
     getUserMatches(userId)
-      .then(setMatches)
-      .catch((err) => console.error("Error al cargar matches:", err));
+    .then((data) => setMatches(data ?? []))
+    .catch((err) => {
+      console.error("Error al cargar matches:", err);
+      setMatches([]);
+    });
   }, [userId]);
 
   useEffect(() => {
