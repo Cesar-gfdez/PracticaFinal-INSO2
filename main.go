@@ -47,6 +47,9 @@ func main() {
 	}
 	log.Println("CORS: Allowing origin ->", frontendURL)
 	router := gin.Default()
+
+	router.GET("/ws", realtime.WebSocketHandler)
+
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{frontendURL, "http://localhost:3000"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE"},
@@ -575,8 +578,6 @@ func main() {
 			"screenshot_url": relativePath,
 		})
 	})
-
-	router.GET("/ws", realtime.WebSocketHandler)
 
 	router.GET("/api/ranking", func(c *gin.Context) {
 		ranking, err := database.GetRankingTop(10)
