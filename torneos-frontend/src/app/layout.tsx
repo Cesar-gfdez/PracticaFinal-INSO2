@@ -18,7 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="es">
       <body className="bg-background text-foreground min-h-screen">
         <Header />
-        <WebSocketListener />
+        {/*<WebSocketListener />*/}
         <Toaster richColors />
         <SessionHandler />
         <main className="p-6">{children}</main>
