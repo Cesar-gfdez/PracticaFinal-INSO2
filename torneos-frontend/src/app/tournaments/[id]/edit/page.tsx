@@ -180,8 +180,4 @@ export default function EditTournamentPage() {
       </form>
     </div>
   );
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 99649a26706743bc8fc65446359ad37a3aed5974
