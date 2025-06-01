@@ -112,9 +112,9 @@ Accede en [http://localhost:3000](http://localhost:3000)
 
 Proyecto desarrollado por:
 
-* Guillermo
-* Kevin
-* César
+* Guillermo Jimeno  
+* Kevin Álvarez
+* César García
 
-Universidad de Zaragoza - Grado en Ingeniería Informática
+Universidad de León - Grado en Ingeniería Informática
 Proyecto Final de la asignatura INSO 2
